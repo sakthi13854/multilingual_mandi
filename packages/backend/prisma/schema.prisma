@@ -1,0 +1,126 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  VENDOR
+  BUYER
+}
+
+enum SessionStatus {
+  ACTIVE
+  INACTIVE
+  COMPLETED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  OFFER
+}
+
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  passwordHash      String   @map("password_hash")
+  name              String
+  userType          UserType @map("user_type")
+  preferredLanguage String   @default("en") @map("preferred_language")
+  phoneNumber       String?  @map("phone_number")
+  profileImageUrl   String?  @map("profile_image_url")
+  isVerified        Boolean  @default(false) @map("is_verified")
+  trustScore        Float    @default(0.0) @map("trust_score")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  products          Product[]
+  vendorSessions    ChatSession[] @relation("VendorSessions")
+  buyerSessions     ChatSession[] @relation("BuyerSessions")
+  sentMessages      Message[]
+  trustScoreEntries TrustScore[]
+
+  @@map("users")
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  vendorId      String   @map("vendor_id")
+  title         Json     // Multilingual titles
+  description   Json     // Multilingual descriptions
+  price         Float
+  currency      String   @default("INR")
+  category      String
+  subcategory   String?
+  images        String[] @default([])
+  specifications Json    @default("{}")
+  isAvailable   Boolean  @default(true) @map("is_available")
+  stockQuantity Int      @default(0) @map("stock_quantity")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  vendor       User          @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  chatSessions ChatSession[]
+
+  @@map("products")
+}
+
+model ChatSession {
+  id        String        @id @default(cuid())
+  vendorId  String        @map("vendor_id")
+  buyerId   String        @map("buyer_id")
+  productId String        @map("product_id")
+  status    SessionStatus @default(ACTIVE)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  vendor   User      @relation("VendorSessions", fields: [vendorId], references: [id], onDelete: Cascade)
+  buyer    User      @relation("BuyerSessions", fields: [buyerId], references: [id], onDelete: Cascade)
+  product  Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@map("chat_sessions")
+}
+
+model Message {
+  id              String      @id @default(cuid())
+  sessionId       String      @map("session_id")
+  senderId        String      @map("sender_id")
+  originalText    String      @map("original_text")
+  translatedTexts Json        @default("{}") @map("translated_texts")
+  messageType     MessageType @default(TEXT) @map("message_type")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sender  User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model TrustScore {
+  id                     String   @id @default(cuid())
+  userId                 String   @map("user_id")
+  score                  Float
+  transactionSuccessRate Float    @default(0.0) @map("transaction_success_rate")
+  avgResponseTimeHours   Float    @default(0.0) @map("avg_response_time_hours")
+  positiveFeedbackRatio  Float    @default(0.0) @map("positive_feedback_ratio")
+  accountAgeDays         Int      @default(0) @map("account_age_days")
+  verificationLevel      Int      @default(0) @map("verification_level")
+  calculatedAt           DateTime @default(now()) @map("calculated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("trust_scores")
+}
